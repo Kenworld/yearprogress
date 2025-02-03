@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="description" content="Explore an interactive 3D simulation of our solar system, featuring detailed models of planets, their orbits, and real-time year progress visualization,Akussung Kenneth.">
+  <meta property="og:title" content="3D Solar System Simulation">
+  <meta property="og:description" content="Explore an interactive 3D simulation of our solar system with real-time year progress visualization.">
+  <meta property="og:image" content="space.jpg">
+  <meta property="og:url" content="URL_to_your_page">
+  <meta name="twitter:card" content="summary_large_image">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3D Solar System Simulation</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <style>
+   body { 
+      margin: 0; 
+      font-family: Arial, sans-serif;
+      color: white;
+    }
+    canvas { display: block; }
+    #overlay {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(0,0,0,0.5);
+      padding: 10px;
+      border-radius: 5px;
+    }
+    #yearProgressContainer {
+      width: 300px;
+      background: rgba(255,255,255,0.2);
+      border-radius: 5px;
+      margin-top: 10px;
+    }
+    #yearProgressBar {
+      height: 20px;
+      background: rgba(255,255,255,0.5);
+      border-radius: 5px;
+      text-align: center;
+      line-height: 20px;
+      color: black;
+    }
+    #credits {
+      position: absolute;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: white;
+      font-size: 12px;
+      text-shadow: 1px 1px 2px black;
+    }
+  </style>
+</head>
+<body>
+    
+    <div id="overlay">
+        <h1>3D Solar System Simulation</h1>
+        <div id="currentDate"></div>
+        <div id="currentTime"></div>
+        <div id="yearProgressContainer">
+          <div id="yearProgressBar"></div>
+        </div>
+        <div id="yearProgressText"></div>
+      </div>
+      <div id="credits">Developed with ❤️ by Akussung Kenneth</div>
+<script>
+// Solar system configuration
+const PLANETS = [
+  { name: 'Mercury', color: 0xA0522D, orbitRadius: 70, size: 4, speed: 0.02, axialTilt: 0.03 },
+  { name: 'Venus', color: 0xDEB887, orbitRadius: 100, size: 6, speed: 0.015, axialTilt: 2.64 },
+  { name: 'Earth', color: 0x4169E1, orbitRadius: 140, size: 6, speed: 0.01, axialTilt: 23.4, moons: 1 },
+  { name: 'Mars', color: 0xCD5C5C, orbitRadius: 180, size: 5, speed: 0.008, axialTilt: 25.2, moons: 2 },
+  { name: 'Jupiter', color: 0xDAA520, orbitRadius: 250, size: 12, speed: 0.005, axialTilt: 3.1, moons: 4 },
+  { name: 'Saturn', color: 0xF4A460, orbitRadius: 320, size: 10, speed: 0.003, axialTilt: 26.7, moons: 6 },
+  { name: 'Uranus', color: 0x87CEEB, orbitRadius: 380, size: 8, speed: 0.002, axialTilt: 97.8, moons: 3 },
+  { name: 'Neptune', color: 0x4682B4, orbitRadius: 440, size: 7, speed: 0.001, axialTilt: 28.3, moons: 2 }
+];
+
+// Three.js setup
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x000000);
+
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+camera.position.z = 500;
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+// Lighting
+const ambientLight = new THREE.AmbientLight(0x404040);
+scene.add(ambientLight);
+const sunLight = new THREE.PointLight(0xffffff, 1.5, 0);
+sunLight.position.set(0, 0, 0);
+scene.add(sunLight);
+
+// Sun
+const sunGeometry = new THREE.SphereGeometry(30, 32, 32);
+const sunMaterial = new THREE.MeshBasicMaterial({ 
+  color: 0xffff00,
+  emissive: 0xffaa00
+});
+const sun = new THREE.Mesh(sunGeometry, sunMaterial);
+scene.add(sun);
+
+// Planets and orbits
+const planetObjects = [];
+PLANETS.forEach(planetData => {
+  // Orbit
+  const orbitGeometry = new THREE.RingGeometry(planetData.orbitRadius, planetData.orbitRadius + 0.5, 100);
+  const orbitMaterial = new THREE.MeshBasicMaterial({ 
+    color: 0xffffff, 
+    side: THREE.DoubleSide,
+    opacity: 0.2,
+    transparent: true
+  });
+  const orbit = new THREE.Mesh(orbitGeometry, orbitMaterial);
+  orbit.rotation.x = Math.PI / 2;
+  scene.add(orbit);
+
+  // Planet
+  const planetGeometry = new THREE.SphereGeometry(planetData.size, 32, 32);
+  const planetMaterial = new THREE.MeshStandardMaterial({ 
+    color: planetData.color,
+    roughness: 0.7,
+    metalness: 0.3
+  });
+  const planet = new THREE.Mesh(planetGeometry, planetMaterial);
+  
+  // Axial tilt
+  planet.rotation.x = THREE.MathUtils.degToRad(planetData.axialTilt);
+  
+  // Moons
+  const moons = [];
+  if (planetData.moons) {
+    for (let i = 0; i < planetData.moons; i++) {
+      const moonGeometry = new THREE.SphereGeometry(planetData.size / 4, 16, 16);
+      const moonMaterial = new THREE.MeshStandardMaterial({ color: 0x888888 });
+      const moon = new THREE.Mesh(moonGeometry, moonMaterial);
+      
+      // Position moon around the planet
+      moon.position.x = planetData.size + 10 + (i * 5);
+      planet.add(moon);
+      moons.push(moon);
+    }
+  }
+
+  // Store planet data for animation
+  planetObjects.push({
+    mesh: planet,
+    orbitRadius: planetData.orbitRadius,
+    speed: planetData.speed,
+    angle: Math.random() * Math.PI * 2,
+    moons: moons
+  });
+
+  scene.add(planet);
+});
+
+// Mouse interaction for rotation
+let isMouseDown = false;
+let previousMousePosition = { x: 0, y: 0 };
+
+renderer.domElement.addEventListener('mousedown', (e) => {
+  isMouseDown = true;
+});
+
+renderer.domElement.addEventListener('mousemove', (e) => {
+  if (!isMouseDown) return;
+  
+  const deltaMove = {
+    x: e.offsetX - previousMousePosition.x,
+    y: e.offsetY - previousMousePosition.y
+  };
+  
+  scene.rotation.y += deltaMove.x * 0.01;
+  scene.rotation.x += deltaMove.y * 0.01;
+  
+  previousMousePosition = { x: e.offsetX, y: e.offsetY };
+});
+
+renderer.domElement.addEventListener('mouseup', () => {
+  isMouseDown = false;
+});
+
+renderer.domElement.addEventListener('wheel', (e) => {
+  camera.position.z += e.deltaY * 0.5;
+  camera.position.z = Math.max(200, Math.min(camera.position.z, 800));
+});
+
+// Responsive
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// Animation loop
+function animate() {
+  requestAnimationFrame(animate);
+
+  // Rotate planets in their orbits
+  planetObjects.forEach(planet => {
+    planet.angle += planet.speed;
+    planet.mesh.position.x = Math.cos(planet.angle) * planet.orbitRadius;
+    planet.mesh.position.z = Math.sin(planet.angle) * planet.orbitRadius;
+    
+    // Rotate planet around its own axis
+    planet.mesh.rotation.y += 0.01;
+    
+    // Rotate moons
+    planet.moons.forEach((moon, index) => {
+      moon.rotation.y += 0.05 * (index + 1);
+    });
+  });
+
+  renderer.render(scene, camera);
+}
+// Date and Progress Functionality
+function updateDateTime() {
+    const now = new Date();
+
+    // Display Current Date and Time
+    document.getElementById("currentDate").innerText = now.toDateString();
+    document.getElementById("currentTime").innerText = now.toLocaleTimeString();
+
+    // Calculate Year Progress
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
+    const endOfYear = new Date(now.getFullYear() + 1, 0, 1);
+    const progress = ((now - startOfYear) / (endOfYear - startOfYear)) * 100;
+
+    // Update Progress Bar
+    const progressBar = document.getElementById("yearProgressBar");
+    progressBar.style.width = `${progress.toFixed(2)}%`;
+    progressBar.innerText = `${progress.toFixed(2)}%`;
+    
+    // Update Progress Text
+    document.getElementById("yearProgressText").innerText = `We've completed ${progress.toFixed(2)}% of ${now.getFullYear()}`;
+}
+
+// Update every second
+setInterval(updateDateTime, 1000);
+
+// Initial Call
+updateDateTime();
+animate();
+</script>
+</body>
+</html>
